@@ -1,3 +1,11 @@
+import hashlib
+
+def hash256(message):
+  # returns a bytes object (essentially a sequence of integers [0, 255], that is immutable)
+  # the message can be a bytes object (or whatever else sha256 accepts)
+  # applies sha256 twice
+  return hashlib.sha256(hashlib.sha256(message).digest()).digest()
+
 class FieldElement:
   def __init__(self, num, prime):
     if num < 0 or num >= prime:
@@ -166,4 +174,4 @@ class Signature:
     self.s = s
   def __repr__(self):
     return f'Signature({self.r:x},{self.s:x})'
-  
+
