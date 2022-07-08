@@ -284,3 +284,14 @@ class PrivateKey:
     # serialization of the private key in WIF format
     # compressed indicates whether the associated public key's address used compressed or uncompressed SEC
     return encode_base58_checksum((b'\xef' if testnet else b'\x80') + self.secret.to_bytes(32, "big") + (b'\x01' if compressed else b''))
+
+
+# I don't really get the point of these 2 functions, they're just wrappers for basic python methods
+def little_endian_to_int(b):
+  """takes a bytes object, and returns the int interpreted in little endian"""
+  return int.from_bytes(b, "little")
+def int_to_little_endian(i, length):
+  # length is number of bytes in the final bytes object
+  # if it is less than the minimum number of bytes needed to represent the integer, then we get an OverflowError
+  # if it is greater, then we get \x00 padded to the right 
+  return i.to_bytes(length, "little")
