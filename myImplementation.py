@@ -134,6 +134,11 @@ class S256Field(FieldElement):
     # we want to show 256 bits (recall that all s256 field elements r storable in 256 bits), even leading zeros
     # this means showing 64 hex digits (since 1 hex digit represents 4 bits); zfill(64) left pads zeroes until we have 64 characters
     return f'{self.num:x}'.zfill(64)
+  
+  def sqrt(self):
+    # returns one of the 2 possible sqrts
+    # this formula works for S256Field elements since s256p%4 == 3
+    return self ** ((self.prime + 1) // 4)
 
 class S256Point(Point):
   def __init__(self, x, y, a=None, b=None):
@@ -141,9 +146,7 @@ class S256Point(Point):
     here we need a=None and b=None since when self.__class__ appears in one of Point's methods
     and self is a S256Point, that method will pass in a and b, and we have to accept it, despite already knowing what it is
     """
-    """
-    is there a reason why the book didn't do it like if x is None then let directly thru, otherwise pass thru S256Field first?
-    """
+    # is there a reason why the book didn't do it like if x is None then let directly thru, otherwise pass thru S256Field first?
     if type(x) == int:
       super().__init__(S256Field(x), S256Field(y), S256Field(s256a), S256Field(s256b))
     else: # if x & y are None (we have the point at inf), we need to let them directly thru without S256Field
@@ -175,6 +178,29 @@ class S256Point(Point):
       return b'\x03' + self.x.num.to_bytes(32, "big")
     else:
       return b'\x02' + self.x.num.to_bytes(32, "big")
+  
+  @classmethod
+  def parse(self, sec_bin):
+    # sec_bin is the SEC binary that we get; it is a bytes object i believe
+    # it appears comparisons like sec_bin[0] == b'\x04' don't work, we need to do == 4
+    if sec_bin[0] == 4: # uncompressed SEC
+      x = int.from_bytes(sec_bin[1:33], "big")
+      y = int.from_bytes(sec_bin[33:65], "big")
+      return S256Point(x, y)
+    if sec_bin[0] == 3: # compressed, even y
+      x = S256Field(int.from_bytes(sec_bin[1:], "big"))
+      y = (x**3 + S256Field(s256b)).sqrt()
+      if not (y.num % 2):
+        y = -1 * y
+      return S256Point(x, y)
+    if sec_bin[0] == 2: # compressed, odd y
+      x = S256Field(int.from_bytes(sec_bin[1:], "big"))
+      y = (x**3 + S256Field(s256b)).sqrt()
+      if y.num % 2:
+        y = -1 * y
+      return S256Point(x, y)
+
+      
 
 # the point that generates the finite cyclic group of secp256k1 that we use 
 G = S256Point(0x79be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f81798, 0x483ada7726a3c4655da4fbfc0e1108a8fd17b448a68554199c47d08ffb10d4b8)
