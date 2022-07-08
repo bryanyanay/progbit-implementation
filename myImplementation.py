@@ -6,6 +6,26 @@ def hash256(message):
   # applies sha256 twice
   return hashlib.sha256(hashlib.sha256(message).digest()).digest()
 
+BASE58_ALPHABET = '123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz'
+def encode_base58(s):
+  # s is a bytes object, and we're converting it into a base58 string
+
+  """I don't entirely understand why we pad our base58 with 0s (or 1s technically) equal to the number of 0 bytes that s is padded with yet"""
+  numZeroes = 0 # the number of \x00 that pad s to the left (other \x00 aren't counted)
+  for byte in s:
+    if byte: # if the byte isn't 0
+      break
+    numZeroes += 1
+
+  result = ""
+  num = int.from_bytes(s, "big") # reading s's base256 digits (byte by byte) in big-endian is equivalent to reading s's base2 digits (8 for each "base256 digit") and converting it to base10
+  while num > 0:
+    num, digit = divmod(num, 58)
+    result = BASE58_ALPHABET[digit] + result
+
+  return ("1"*numZeroes) + result # 1 is the digit for 0 in base58
+
+
 class FieldElement:
   def __init__(self, num, prime):
     if num < 0 or num >= prime:
