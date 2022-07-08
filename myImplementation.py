@@ -211,6 +211,22 @@ class Signature:
     self.s = s
   def __repr__(self):
     return f'Signature({self.r:x},{self.s:x})'
+  
+  def der(self):
+    # serialization of the signature in DER format
+    r = self.r.to_bytes(32, "big")
+    r = r.lstrip(b'\x00')
+    if r[0] & 0x80: # 0x80 is 1000 0000
+      r = b'\x00' + r
+    result = bytes([2, len(r)]) + r
+
+    s = self.s.to_bytes(32, "big")
+    s = s.lstrip(b'\x00')
+    if s[0] & 0x80:
+      s = b'\x00' + s
+    result += bytes([2, len(s)]) + s
+
+    return bytes([0x30, len(result)]) + result
 
 class PrivateKey: 
   """
@@ -221,7 +237,7 @@ class PrivateKey:
   def __init__(self, secret):
     self.secret = secret # doesn't this allow us to pass in a secret greater than s256n? should we mod by n??
     self.point = secret*G # apparently we keep this around for convenience 
-  
+
   def hex(self):
     # here we pad with 0s to show 64 hex digits, or 256 bits
     # i believe this is bc the secret, which in ECDSA with secp256k1 is a scalar multiple of G, is thus [0, n-1]
