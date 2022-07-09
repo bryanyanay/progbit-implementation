@@ -215,7 +215,7 @@ class S256Point(Point):
     return encode_base58_checksum( (b'\x6f' if testnet else b'\x00') + h160)
 
   @classmethod
-  def parse(self, sec_bin):
+  def parse(cls, sec_bin):
     # sec_bin is the SEC binary that we get; it is a bytes object i believe
     # it appears comparisons like sec_bin[0] == b'\x04' don't work, we need to do == 4
     if sec_bin[0] == 4: # uncompressed SEC
