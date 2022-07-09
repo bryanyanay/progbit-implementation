@@ -280,6 +280,38 @@ class PrivateKey:
     # and since n is lower than but close to 2^256, we know that the secret is then storable in 256 bits
     return f'{self.secret:x}'.zfill(64) 
 
+  def sign(self, z):
+    k = self.deterministic_k(z)
+    r = (k*G).x.num
+    kInv = pow(k, s256n-2, s256n)
+    s = ((z+r*self.secret) * kInv) % s256n
+    if s > s256n/2: # we use the lower s value
+      s = s256n - s
+    return Signature(r, s)
+
+  def deterministic_k(self, z):
+    # deterministically generates k given the private key and the message hash
+    # i just copied this from the book, i don't actually understand what's going on here
+    # specification here: https://datatracker.ietf.org/doc/html/rfc6979
+    k = b'\x00' * 32
+    v = b'\x01' * 32
+    if z > N:
+      z -= N
+    z_bytes = z.to_bytes(32, 'big')
+    secret_bytes = self.secret.to_bytes(32, 'big')
+    s256 = hashlib.sha256
+    k = hmac.new(k, v + b'\x00' + secret_bytes + z_bytes, s256).digest()
+    v = hmac.new(k, v, s256).digest()
+    k = hmac.new(k, v + b'\x01' + secret_bytes + z_bytes, s256).digest()
+    v = hmac.new(k, v, s256).digest()
+    while True:
+      v = hmac.new(k, v, s256).digest()
+      candidate = int.from_bytes(v, 'big')
+      if candidate >= 1 and candidate < N:
+        return candidate  # <2>
+      k = hmac.new(k, v + b'\x00', s256).digest()
+      v = hmac.new(k, v, s256).digest()
+      
   def wif(self, compressed = True, testnet = False):
     # serialization of the private key in WIF format
     # compressed indicates whether the associated public key's address used compressed or uncompressed SEC
