@@ -1,4 +1,7 @@
 import hashlib
+from io import BytesIO
+import requests
+
 
 def hash256(message):
   # returns a bytes object (essentially a sequence of integers [0, 255], that is immutable)
@@ -355,8 +358,8 @@ def encode_varint(i):
 class Tx:
   def __init__(self, version, tx_ins, tx_outs, locktime, testnet = False):
     self.version = version
-    self.tx_ins = tx_ins
-    self.tx_outs = tx_outs
+    self.tx_ins = tx_ins   # list of TxIns
+    self.tx_outs = tx_outs # list of TxOuts
     self.locktime = locktime
     self.testnet = testnet
   
@@ -397,11 +400,23 @@ class Tx:
     locktime = little_endian_to_int(stream.read(4))
     
     return cls(version, ins, outs, locktime, testnet)
+  
+  def serialize(self):
+    # returns bytes object serialization of the transaction
+    result = int_to_little_endian(self.version, 4)
+    result += encode_varint(len(self.tx_ins))
+    for input in self.tx_ins:
+      result += input.serialize()
+    result += encode_varint(len(self.tx_outs))
+    for output in self.tx_outs:
+      result += output.serialize()
+    result += int_to_little_endian(self.locktime, 4)
+    return result
 
 
 class TxIn:
   def __init__(self, prev_tx, prev_index, script_sig = None, sequence = 0xffffffff):
-    self.prev_tx = prev_tx
+    self.prev_tx = prev_tx # "previous" transaction is a bit of a misnomer; this is the transaction that has the output we're referring to, not necessarily the previous transaction
     self.prev_index = prev_index
     if script_sig is None: # i'm not entirely sure why we default to having an empty script_sig yet
       self.script_sig = Script() # we haven't implemented the Script class yet
@@ -421,6 +436,14 @@ class TxIn:
     script_sig = Script.parse(stream) # we haven't implemented Script.parse yet
     sequence = little_endian_to_int(stream.read(4))
     return cls(prev_tx, prev_index, script_sig, sequence)
+  
+  def serialize(self):
+    # returns bytes object serialization of the transaction input
+    result = self.prev_tx[::-1] # we store prev_tx in big endian, so reverse to little??
+    result += int_to_little_endian(self.prev_index, 4)
+    result += self.script_sig.serialize()
+    result += int_to_little_endian(self.sequence, 4)
+    return result
 
 class TxOut:
   def __init__(self, amount, script_pubkey):
@@ -436,3 +459,48 @@ class TxOut:
     amt = little_endian_to_int(stream.read(8))
     script_pubkey = Script.parse(stream)
     return cls(amt, script_pubkey)
+
+  def serialize(self):
+    # returns bytes object serialization of the transaction output
+    result = int_to_little_endian(self.amount, 8)
+    result += self.script_pubkey.serialize()
+    return result
+
+response = requests.get("https://blockstream.info/testnet/api/tx/312da9314fbd0da82ccf280e12022b4ad3f1f922bd7ba7223e3208eac9d7e38c/hex")
+print(response.text)
+print(response.text.strip())
+
+class TxFetcher: # class for fetching transactions from blockstream.info
+  cache = {} # stores transactions that we've previously fetched
+
+  @classmethod
+  def get_url(cls, testnet=False):
+    if testnet:
+      return 'https://blockstream.info/testnet/api/'
+    else:
+      return 'https://blockstream.info/api/'
+  
+  @classmethod
+  def fetch(cls, tx_id, testnet=False, fresh=False):
+    # returns a Tx object of the transaction who's id is tx_id
+    # i believe fresh means we want to make a new request to blockstream, even if we already have the transaction in the cache
+    if fresh or (tx_id not in cache):
+      response = requests.get(f"{cls.get_url(testnet)}/tx/{tx_id}/hex") # requests.get makes an HTTP request i think
+      try:
+        raw = bytes.fromhex(response.text.strip())
+      except ValueError: # i don't entirely understand when a value error would occur; maybe when response.text doesn't contain a hex dump??
+        raise ValueError(f"unexpected response: {response.text}")
+      if raw[4] == 0: # i don't yet understand why we do this special stuff if raw[4] == 0; i assume this will be covered in a later chapter
+        raw = raw[:4] + raw[6:]
+        tx = Tx.parse(BytesIO(raw), testnet)
+        tx.locktime = little_endian_to_int(raw[-4:])
+      else: # normal parsing
+        tx = Tx.parse(BytesIO(raw), testnet)
+
+      if tx.id() != tx_id:
+        raise ValueError(f"not the same id: {tx_id} vs {tx.id()}")
+      cls.cache[tx_id] = tx
+    cls.cache[tx_id].testnet = testnet # not sure why we do this; if we parsed Tx.parse should have already set the tx's testnet to the correct valute, and otherwise it should already be at the correct value??
+    return cls.cache[tx_id]
+  
+  # this class also has the load_cache and dump_cache methods in the code, but the book didn't talk abt them; maybe they'll be covered later?
