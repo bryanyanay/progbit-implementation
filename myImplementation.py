@@ -413,6 +413,16 @@ class Tx:
     result += int_to_little_endian(self.locktime, 4)
     return result
 
+  def fee(self, testnet=False):
+    # returns the fee of the transaction (inputs - outputs) in satoshi
+    # why do we have testnet as parameter here, as opposed to using self.testnet??
+    result = 0
+    for input in self.tx_ins:
+      result += input.value(testnet)
+    for output in self.tx_outs:
+      result -= output.amount
+    return result
+
 
 class TxIn:
   def __init__(self, prev_tx, prev_index, script_sig = None, sequence = 0xffffffff):
