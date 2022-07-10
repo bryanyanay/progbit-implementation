@@ -311,7 +311,7 @@ class PrivateKey:
         return candidate  # <2>
       k = hmac.new(k, v + b'\x00', s256).digest()
       v = hmac.new(k, v, s256).digest()
-      
+
   def wif(self, compressed = True, testnet = False):
     # serialization of the private key in WIF format
     # compressed indicates whether the associated public key's address used compressed or uncompressed SEC
@@ -327,3 +327,35 @@ def int_to_little_endian(i, length):
   # if it is less than the minimum number of bytes needed to represent the integer, then we get an OverflowError
   # if it is greater, then we get \x00 padded to the right 
   return i.to_bytes(length, "little")
+
+
+class Tx:
+  def __init__(self, version, tx_ins, tx_outs, locktime, testnet = False):
+    self.version = version
+    self.tx_ins = tx_ins
+    self.tx_outs = tx_outs
+    self.locktime = locktime
+    self.testnet = testnet
+  
+  def __repr__(self):
+    tx_ins = ""
+    for tx_in in self.tx_ins:
+      tx_ins += tx_in.__repr__() + "\n"
+    tx_outs = ""
+    for tx_out in self.tx_outs:
+      tx_outs += tx_out.__repr__() + "\n"
+    return f"tx: {self.id()}\nversion: {self.version}\ntx_ins:\n{tx_ins}tx_outs:\n{tx_outs}locktime: {self.locktime}"
+
+  def id(self):
+    # the id of the transaction is just the human-readable hex dump of its hash (its binary??)
+    return self.hash().hex()
+  def hash(self):
+    # hash256 on the serialization, but in little endian (which is why we reverse it wih [::-1])
+    return hash256(self.serialize())[::-1]
+
+  @classmethod
+  def parse(cls, stream, testnet = False):
+    # im p sure stream is meant to be a BytesIO object; .read(num) returns the next num bytes in the stream
+    version = little_endian_to_int(stream.read(4))
+
+    return cls(version, testnet)
