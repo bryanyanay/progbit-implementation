@@ -444,6 +444,18 @@ class TxIn:
     result += self.script_sig.serialize()
     result += int_to_little_endian(self.sequence, 4)
     return result
+  
+  def fetch_tx(self, testnet=False):
+    # returns a Tx object of the transaction that has the output that this input is spending
+    # why don't we have to reverse prev_tx first?? isn't it being stored in the wrong endian format or smth
+    return TxFetcher.fetch(self.prev_tx.hex(), testnet)
+  def value(self, testnet=False):
+    # return the value of the output that this input is spending (in satoshi)
+    return self.fetch_tx(testnet).tx_outs[self.prev_index].amount
+  def script_pubkey(self, testnet=False):
+    # returns a Script object (that class isn't yet implemented)
+    return self.fetch_tx(testnet).tx_outs[self.prev_index].script_pubkey
+  
 
 class TxOut:
   def __init__(self, amount, script_pubkey):
