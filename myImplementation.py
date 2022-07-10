@@ -374,6 +374,7 @@ class Tx:
     return self.hash().hex()
   def hash(self):
     # hash256 on the serialization, but in little endian (which is why we reverse it wih [::-1])
+    # we haven't implemented .serialize() yet
     return hash256(self.serialize())[::-1]
 
   @classmethod
@@ -381,4 +382,34 @@ class Tx:
     # im p sure stream is meant to be a BytesIO object; .read(num) returns the next num bytes in the stream
     version = little_endian_to_int(stream.read(4))
 
-    return cls(version, testnet)
+    # parsing inputs
+    num = read_varint(stream)
+    ins = []
+    for _ in range(num):
+      ins.append(TxIn.parse(stream))
+    
+    return cls(version, ins, testnet)
+
+
+class TxIn:
+  def __init__(self, prev_tx, prev_index, script_sig = None, sequence = 0xffffffff):
+    self.prev_tx = prev_tx
+    self.prev_index = prev_index
+    if script_sig is None: # i'm not entirely sure why we default to having an empty script_sig yet
+      self.script_sig = Script() # we haven't implemented the Script class yet
+    else:
+      self.script_sig = script_sig
+    self.sequence = sequence # by default, we set it to 0xffffffff when we're not using it; see: https://bitcoin.stackexchange.com/questions/2025/what-is-txins-sequence
+  
+  def __repr__(self):
+    # essentially returns the previous transaction output this input is referring to
+    return f"{self.prev_tx.id()}:{self.prev_index}"
+
+  @classmethod
+  def parse(cls, stream):
+    # parses a transaction input from the front of a byte stream
+    prev_tx = stream.read(32)[::-1] # so prev_tx stays as a bytes object; but the bytes object in the stream is i believe little endian, so we reverse it to store it as big endian?? (why??)
+    prev_index = little_endian_to_int(stream.read(4))
+    script_sig = Script.parse(stream) # we haven't implemented Script.parse yet
+    sequence = little_endian_to_int(stream.read(4))
+    return cls(prev_tx, prev_index, script_sig, sequence)
