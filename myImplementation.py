@@ -383,12 +383,20 @@ class Tx:
     version = little_endian_to_int(stream.read(4))
 
     # parsing inputs
-    num = read_varint(stream)
+    numIn = read_varint(stream)
     ins = []
-    for _ in range(num):
+    for _ in range(numIn):
       ins.append(TxIn.parse(stream))
+
+    # parsing outputs
+    numOut = read_varint(stream)
+    outs = []
+    for _ in range(numOut):
+      outs.append(TxOut.parse(stream))
+
+    locktime = little_endian_to_int(stream.read(4))
     
-    return cls(version, ins, testnet)
+    return cls(version, ins, outs, locktime, testnet)
 
 
 class TxIn:
@@ -413,3 +421,18 @@ class TxIn:
     script_sig = Script.parse(stream) # we haven't implemented Script.parse yet
     sequence = little_endian_to_int(stream.read(4))
     return cls(prev_tx, prev_index, script_sig, sequence)
+
+class TxOut:
+  def __init__(self, amount, script_pubkey):
+    self.amount = amount
+    self.script_pubkey = script_pubkey
+  
+  def __repr__(self):
+    return f'{self.amount}:{self.script_pubkey}'
+
+  @classmethod
+  def parse(cls, stream):
+    # parses a transaction output at the front of a byte stream
+    amt = little_endian_to_int(stream.read(8))
+    script_pubkey = Script.parse(stream)
+    return cls(amt, script_pubkey)
